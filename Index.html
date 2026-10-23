@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kieed — Hatsune Miku Cover</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500;0,6..96,700;0,6..96,800;1,6..96,600&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet">
+  <style>
+    @font-face {
+      font-family: 'Wee';
+      src: url('SoukouMincho.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: 'Lao';
+      src: url('Makcasa-Regular.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    :root {
+      --ink: #0d0e1e;
+      --paper: #f3f0e8;
+      --line: rgba(243, 240, 232, 0.18);
+      --font-display: 'Bodoni Moda', serif;
+      --font-mono: 'Space Mono', monospace;
+
+      /* Second palette, pulled from the underwater artwork's cool blues and
+         the Sekai cover reference's indigo/gold — used only on the
+         .cover--sekai variant below, so the two covers read as distinct. */
+      --deep: #121936;
+      --deep-soft: rgba(18, 25, 54, 0.78);
+      --frost: #dde8ef;
+      --gold: #c9a463;
+      --coral: #e2572c;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-mono);
+      overflow-x: hidden;
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    body::-webkit-scrollbar {
+      display: none;
+    }
+
+    img {
+      display: block;
+    }
+
+    /* ============ Signature intro ============ */
+
+    .intro {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      transition: opacity 0.6s ease;
+    }
+
+    .intro.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .intro__sig {
+      width: min(58vw, 420px);
+      height: auto;
+      overflow: visible;
+      filter: drop-shadow(0 2px 20px rgba(0, 0, 0, 0.55));
+    }
+
+    .intro__sig path {
+      fill: none;
+      stroke: var(--paper);
+      stroke-width: 34;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: var(--len);
+      stroke-dashoffset: var(--len);
+      animation-name: sigDraw;
+      animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+      animation-fill-mode: forwards;
+      /* Stay paused until JS has measured the real length of each path
+         (see script below) — the --len values above are only a fallback,
+         and starting before they're corrected caused the "no animation"
+         look, since the guessed lengths were shorter than the real path. */
+      animation-play-state: paused;
+    }
+
+    .intro__sig.is-ready path {
+      animation-play-state: running;
+    }
+
+    @keyframes sigDraw {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    .intro__skip {
+      position: absolute;
+      bottom: 7%;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--paper);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      opacity: 0;
+      cursor: pointer;
+      transition: opacity 0.5s ease;
+    }
+
+    .intro__skip.is-visible {
+      opacity: 0.5;
+    }
+
+    .intro__skip.is-prompt {
+      font-size: 11px;
+      letter-spacing: 0.24em;
+      animation: introPromptPulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes introPromptPulse {
+
+      0%,
+      100% {
+        opacity: 0.5;
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .intro__skip:hover {
+      opacity: 0.9;
+    }
+
+    /* ============ Carousel ("roulette") shell ============ */
+
+    .carousel {
+      position: relative;
+      width: 100%;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: #000;
+      overflow-x: hidden;
+      overflow-y: visible;
+    }
+
+    .carousel__track {
+      position: relative;
+      width: 100%;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    /* Each cover lives in its own slide. Add more .cover-slide blocks
+       inside #carouselTrack to grow the rotation — the barcode, dot
+       navigation, autoplay and text entrance animation all pick up
+       new slides automatically. Only the first slide should carry
+       the "is-active" class. */
+    .cover-slide {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.9s ease, visibility 0s linear 0.9s;
+      z-index: 1;
+    }
+
+    .cover-slide.is-active {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.9s ease, visibility 0s linear 0s;
+      z-index: 2;
+    }
+
+    .carousel__arrow {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 20;
+      background: none;
+      border: none;
+      color: var(--paper);
+      font-family: var(--font-display);
+      font-size: clamp(22px, 3vw, 46px);
+      line-height: 1;
+      padding: 14px 10px;
+      opacity: 0.4;
+      cursor: pointer;
+      transition: opacity 0.3s ease;
+    }
+
+    .carousel__arrow:hover {
+      opacity: 0.9;
+    }
+
+    .carousel__arrow--prev {
+      left: 1.5%;
+    }
+
+    .carousel__arrow--next {
+      right: 1.5%;
+    }
+
+    .carousel__dots {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 34px;
+      z-index: 20;
+      display: flex;
+      justify-content: center;
+      gap: 9px;
+    }
+
+    .carousel__dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      border: none;
+      background: var(--paper);
+      opacity: 0.35;
+      padding: 0;
+      cursor: pointer;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .carousel__dot.is-active {
+      opacity: 1;
+      transform: scale(1.25);
+    }
+
+    .carousel__arrow:focus-visible,
+    .carousel__dot:focus-visible {
+      outline: 1px solid var(--paper);
+      outline-offset: 3px;
+    }
+
+    /* ============ Roll ("slot machine") reveal ============ */
+    /* Runs once, right after the signature intro fades out: the cover art
+       cycles rapidly through the slides, slowing down, then lands on a
+       randomly chosen one. Everything in this block is placeholder FX —
+       swap the filter/keyframes for your own look whenever you're ready. */
+
+    .carousel.is-rolling .cover-slide {
+      transition: none !important;
+    }
+
+    .carousel.is-rolling .cover__bg,
+    .carousel.is-rolling .cover__art {
+      filter: blur(5px) saturate(1.4) brightness(1.12);
+    }
+
+    .carousel.is-rolling .cover__scrim {
+      opacity: 0.35;
+    }
+
+    .carousel.is-rolling .animate-text {
+      opacity: 0 !important;
+    }
+
+    /* PLACEHOLDER FX — spin streaks. Purely decorative overlay while rolling. */
+    .reel-streaks {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      opacity: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(180deg,
+          rgba(243, 240, 232, 0) 0px,
+          rgba(243, 240, 232, 0.10) 2px,
+          rgba(243, 240, 232, 0) 5px);
+      mix-blend-mode: overlay;
+    }
+
+    .carousel.is-rolling .reel-streaks {
+      opacity: 1;
+      animation: reelStreaks 0.35s linear infinite;
+    }
+
+    @keyframes reelStreaks {
+      from {
+        background-position-y: 0;
+      }
+
+      to {
+        background-position-y: 40px;
+      }
+    }
+
+    /* PLACEHOLDER FX — landing flash, fired once the roll settles on a cover. */
+    .reel-flash {
+      position: absolute;
+      inset: 0;
+      z-index: 15;
+      opacity: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 45%, rgba(243, 240, 232, 0.95), rgba(243, 240, 232, 0) 62%);
+    }
+
+    .carousel.is-landed .reel-flash {
+      animation: reelFlash 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+
+    @keyframes reelFlash {
+      0% {
+        opacity: 0;
+        transform: scale(0.85);
+      }
+
+      28% {
+        opacity: 0.85;
+        transform: scale(1.05);
+      }
+
+      100% {
+        opacity: 0;
+        transform: scale(1.35);
+      }
+    }
+
+    /* PLACEHOLDER FX — small settle/bounce on the art itself when it lands. */
+    .carousel.is-landed .cover-slide.is-active .cover__bg,
+    .carousel.is-landed .cover-slide.is-active .cover__art {
+      animation: reelLand 0.6s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+    }
+
+    @keyframes reelLand {
+      0% {
+        transform: scale(1.06);
+        filter: blur(2px);
+      }
+
+      100% {
+        transform: scale(1);
+        filter: blur(0);
+      }
+    }
+
+    /* ============ Cover (magazine page) ============ */
+
+    .cover {
+      position: relative;
+      width: 100%;
+      min-height: 100vh;
+      min-height: 100dvh;
+      aspect-ratio: 1371 / 2300;
+      background: #000;
+      overflow: hidden;
+    }
+
+    .cover__bg,
+    .cover__art {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .cover__bg {
+      z-index: 1;
+    }
+
+    .cover__art {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      /* Sits above the scrim AND the text (z-index 3–4) on purpose: this is
+         the cutout layer, registered to the exact same crop as .cover__bg,
+         so only its opaque pixels (hair, the CD case, the hand) fall in
+         front of the masthead/nameplate — everything transparent still
+         shows the text underneath. That's what gives the "breaking out of
+         the frame" effect instead of just re-covering the whole slide. */
+      z-index: 7;
+      pointer-events: none;
+    }
+
+    .cover__scrim {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0) 16%, rgba(0, 0, 0, 0) 62%, rgba(0, 0, 0, 0.65) 100%);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .cover__top {
+      position: absolute;
+      top: 3.2%;
+      left: 4.5%;
+      right: 4.5%;
+      display: flex;
+      justify-content: space-between;
+      color: var(--paper);
+      font-family: var(--font-display);
+      font-size: clamp(9px, 1.5vw, 18px);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+      z-index: 4;
+    }
+
+    .cover__nameplate {
+      position: absolute;
+      top: 9.5%;
+      left: 4.5%;
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      font-family: 'Wee', var(--font-display);
+      font-size: clamp(50px, 6vw, 110px);
+      font-weight: 700;
+      color: var(--paper);
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+      z-index: 4;
+      display: flex;
+      gap: 12px;
+    }
+
+    .cover__nameplate rt {
+      font-size: 0.4em;
+      font-weight: normal;
+      opacity: 0.85;
+      letter-spacing: 0;
+    }
+
+    .cover__masthead {
+      position: absolute;
+      top: 3%;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: var(--paper);
+      text-shadow: 0 2px 22px rgba(0, 0, 0, 0.55);
+      z-index: 4;
+    }
+
+    .cover__masthead .eyebrow {
+      display: block;
+      font-size: clamp(8px, 1.4vw, 16px);
+      letter-spacing: 0.5em;
+      margin-bottom: 6px;
+      margin-left: 0.5em;
+    }
+
+    .cover__masthead .wordmark {
+      font-family: 'Lao';
+      font-weight: 800;
+      font-size: clamp(5.1rem, 12vw, 10rem);
+      letter-spacing: 0.02em;
+    }
+
+    .cover__line {
+      position: absolute;
+      left: 5.5%;
+      bottom: 15%;
+      max-width: 78%;
+      color: var(--paper);
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-style: italic;
+      font-size: clamp(2rem, 8.5vw, 7.5rem);
+      line-height: 1.04;
+      text-shadow: 0 3px 24px rgba(0, 0, 0, 0.55);
+      z-index: 4;
+    }
+
+    .cover__bottom-right {
+      position: absolute;
+      right: 4.5%;
+      bottom: 3%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+      z-index: 8;
+    }
+
+    .barcode {
+      display: flex;
+      align-items: flex-end;
+      gap: 1.5px;
+      height: 22px;
+    }
+
+    .barcode span {
+      display: block;
+      width: 2px;
+      background: var(--paper);
+      opacity: 0.9;
+    }
+
+    .cover__bottom-right .tag {
+      color: var(--paper);
+      font-size: clamp(9px, 1vw, 15px);
+      letter-spacing: 0.18em;
+      opacity: 0.85;
+    }
+
+    .caption {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 12px;
+      text-align: center;
+      color: rgba(243, 240, 232, 0.55);
+      font-size: clamp(11px, 1vw, 15px);
+      letter-spacing: 0.06em;
+      z-index: 8;
+    }
+
+    /* ============ Cover — "Sekai" variant ============
+       Applied via the .cover--sekai modifier so a second cover can read as
+       a genuinely different design (deep indigo/gold palette, masthead
+       pinned to the top edge, a vertical pull-quote balancing the
+       nameplate) instead of the same template re-skinned with new art. */
+
+    .cover--sekai .cover__scrim {
+      background: linear-gradient(195deg, var(--deep-soft) 0%, rgba(18, 25, 54, 0.05) 32%, rgba(18, 25, 54, 0.05) 56%, rgba(18, 25, 54, 0.85) 100%);
+    }
+
+    .cover--sekai .cover__top {
+      top: 1.8%;
+      color: var(--frost);
+    }
+
+    .cover--sekai .cover__masthead {
+      top: 5%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .cover--sekai .cover__masthead .wordmark {
+      order: 1;
+      color: var(--frost);
+      font-size: clamp(6rem, 15vw, 12rem);
+      letter-spacing: 0.03em;
+    }
+
+    .cover--sekai .cover__masthead .eyebrow {
+      order: 2;
+      margin: 10px 0 0;
+      letter-spacing: 0.65em;
+      color: var(--gold);
+    }
+
+    .cover--sekai .cover__nameplate {
+      top: 26%;
+      color: var(--frost);
+      text-shadow: 0 1px 14px var(--deep-soft);
+    }
+
+    .cover__side-quote {
+      position: absolute;
+      top: 20%;
+      right: 6%;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: clamp(13px, 1.9vw, 21px);
+      letter-spacing: 0.34em;
+      color: var(--frost);
+      text-shadow: 0 1px 10px var(--deep-soft);
+      z-index: 4;
+    }
+
+    .cover__side-quote rt {
+      font-size: 0.44em;
+      opacity: 0.8;
+    }
+
+    .cover--sekai .cover__line {
+      left: auto;
+      right: 5.5%;
+      bottom: 11%;
+      max-width: 40%;
+      text-align: right;
+      font-style: normal;
+      font-weight: 400;
+      font-size: clamp(1rem, 2.2vw, 1.4rem);
+      letter-spacing: 0.14em;
+      line-height: 1.7;
+      padding: 16px 20px;
+      border: 1px solid var(--gold);
+      background: var(--deep-soft);
+    }
+
+    .cover--sekai .cover__bottom-right {
+      left: 4.5%;
+      right: auto;
+      align-items: flex-start;
+    }
+
+    .cover--sekai .barcode span {
+      background: var(--frost);
+    }
+
+    .cover__swatches {
+      position: absolute;
+      right: 4.5%;
+      bottom: 3%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 4;
+    }
+
+    .cover__swatches .chip {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      display: block;
+    }
+
+    .cover__swatches .swatch-label {
+      color: var(--frost);
+      font-size: clamp(8px, 0.9vw, 11px);
+      letter-spacing: 0.22em;
+      opacity: 0.8;
+      margin-left: 6px;
+    }
+
+    @keyframes textFadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Text entrance stays paused until its slide is actually revealed,
+       so it doesn't burn through its animation while hidden behind the
+       intro (or behind another slide in the rotation). */
+    .animate-text {
+      opacity: 0;
+      animation: textFadeUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      animation-play-state: paused;
+    }
+
+    .cover-slide.reveal-text .animate-text {
+      animation-play-state: running;
+    }
+
+    .cover__top {
+      animation-delay: 0.3s;
+    }
+
+    .cover__masthead {
+      animation-delay: 0.5s;
+    }
+
+    .cover__nameplate {
+      animation-delay: 0.6s;
+    }
+
+    .cover__line {
+      animation-delay: 0.8s;
+    }
+
+    .cover__bottom-right {
+      animation-delay: 1.0s;
+    }
+
+    .cover__side-quote {
+      animation-delay: 0.9s;
+    }
+
+    .cover__swatches {
+      animation-delay: 1.1s;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      .animate-text {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+      }
+
+      .cover-slide {
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Intro: the signature draws itself, then the cover rotation appears -->
+  <div class="intro" id="intro">
+    <svg class="intro__sig" viewBox="0 0 6191 7143" xmlns="http://www.w3.org/2000/svg" aria-label="Kieed, signed">
+      <path
+        d="M3380.50,2165.50 C3381.29,2164.95 3381.62,2164.62 3381.50,2164.50 C3380.83,2163.83 3380.17,2163.83 3379.50,2164.50 C3379.38,2164.62 3379.72,2164.95 3380.50,2165.50" />
+      <path
+        d="M3382.50,2166.50 C3384.43,2169.75 3387.44,2174.62 3388.20,2176.84 C3389.47,2180.67 3389.50,2187.33 3388.93,2192.04 C3387.61,2202.27 3378.73,2238.74 3374.54,2253.94 C3372.98,2259.29 3367.17,2276.63 3364.59,2283.56 C3359.06,2296.96 3350.01,2318.65 3342.54,2335.25 C3336.50,2348.36 3323.14,2376.52 3314.76,2393.11 C3300.55,2419.27 3269.65,2475.04 3252.96,2504.65 C3238.79,2529.32 3212.51,2574.66 3200.41,2595.33 C3185.89,2619.46 3148.01,2680.91 3124.65,2718.22 C3110.21,2740.87 3081.94,2785.14 3068.10,2806.75 C3052.74,2830.68 3020.52,2880.85 3003.65,2907.09 C2985.26,2935.65 2946.97,2995.08 2927.07,3025.95 C2905.81,3058.90 2863.91,3123.85 2843.26,3155.87 C2823.81,3186.06 2786.11,3244.61 2767.86,3272.98 C2750.81,3299.53 2717.90,3350.79 2702.05,3375.52 C2687.39,3398.42 2645.74,3463.62 2618.74,3505.93 C2594.81,3543.73 2553.64,3609.16 2536.40,3636.78 C2523.74,3657.28 2501.31,3693.54 2491.55,3709.31 C2487.76,3715.42 2476.57,3733.44 2474.50,3734.50 C2473.71,3734.90 2470.23,3735.95 2468.50,3737.50 C2467.21,3738.67 2456.30,3755.56 2452.50,3761.50" />
+      <path
+        d="M3381.50,2167.50 C3383.65,2177.65 3384.95,2188.35 3384.67,2197.87 C3384.61,2199.87 3384.53,2204.00 3384.49,2205.07 C3384.40,2207.11 3384.64,2208.05 3385.50,2209.50" />
+      <path
+        d="M4159.50,2932.50 C4153.52,2937.13 4136.13,2950.77 4135.50,2951.50 C4134.70,2952.44 4133.86,2954.99 4133.50,2955.50 C4133.43,2955.61 4079.61,3001.80 4057.65,3020.62 C4029.69,3044.51 3972.14,3093.72 3942.56,3119.04 C3916.29,3141.67 3867.09,3184.25 3844.15,3204.19 C3828.05,3218.36 3797.19,3245.72 3782.42,3258.91 C3759.56,3279.92 3717.35,3319.17 3697.99,3337.42 C3678.07,3356.32 3636.73,3395.71 3615.32,3416.20 C3593.23,3437.62 3546.32,3483.77 3521.50,3508.50 C3500.34,3530.11 3455.87,3575.82 3432.56,3599.92 C3409.15,3624.43 3365.16,3670.89 3344.58,3692.84 C3331.87,3706.71 3306.00,3735.28 3292.85,3749.98 C3281.55,3762.99 3261.13,3786.75 3251.99,3797.50 C3245.19,3805.63 3233.64,3819.53 3232.07,3822.58 C3231.41,3823.86 3229.84,3828.02 3229.50,3828.50 C3229.08,3829.09 3215.33,3843.44 3210.02,3849.35 C3207.11,3852.62 3198.59,3862.23 3198.50,3862.50 C3198.29,3863.13 3198.43,3864.85 3197.30,3866.37 C3186.97,3881.05 3176.84,3898.06 3174.70,3902.04 C3173.64,3903.97 3173.47,3904.62 3173.16,3907.71 C3172.96,3909.58 3172.09,3911.32 3170.67,3912.60 C3166.39,3916.31 3163.61,3920.05 3162.50,3923.50" />
+      <path
+        d="M4135.50,2951.50 C4134.05,2949.81 4132.69,2949.05 4130.94,2949.43 C4127.95,2950.10 4123.73,2952.87 4122.94,2953.37 C4106.37,2963.93 4065.82,2989.92 4041.83,3005.36 C4010.16,3025.90 3942.84,3069.68 3907.19,3092.92 C3883.75,3108.22 3834.70,3140.26 3809.10,3156.99 C3781.35,3175.15 3723.90,3212.75 3694.20,3232.19 C3665.16,3251.12 3608.52,3287.93 3580.92,3305.80 C3554.76,3322.63 3498.69,3358.51 3468.80,3377.55 C3436.27,3398.00 3374.12,3436.75 3344.50,3455.06 C3318.01,3471.14 3268.61,3500.88 3245.70,3514.55 C3235.59,3520.48 3213.30,3533.38 3201.12,3540.36 C3182.00,3550.91 3150.33,3567.36 3137.57,3573.44 C3131.74,3576.12 3120.61,3581.16 3115.31,3583.52 C3110.52,3585.55 3099.55,3590.20 3088.93,3593.38 C3081.45,3595.59 3068.51,3598.05 3067.66,3598.24 C3065.88,3598.62 3064.44,3598.16 3063.05,3596.75 C3062.50,3596.20 3061.11,3594.71 3060.21,3595.14 C3056.81,3596.84 3050.89,3598.54 3047.50,3599.50" />
+      <path
+        d="M3339.50,3050.50 C3338.40,3051.76 3332.12,3058.93 3332.00,3059.50 C3331.81,3060.50 3332.55,3062.88 3332.13,3064.37 C3332.12,3064.44 3327.35,3083.60 3323.60,3093.24 C3320.88,3100.21 3307.09,3129.83 3300.84,3142.80 C3284.21,3175.28 3251.51,3238.07 3235.43,3268.40 C3219.85,3297.37 3189.47,3353.38 3174.04,3380.27 C3169.89,3387.54 3166.20,3394.93 3165.55,3396.25 C3164.87,3397.67 3163.00,3398.83 3162.50,3399.50 C3162.35,3399.71 3160.86,3410.28 3160.34,3412.64 C3159.93,3414.39 3158.79,3417.28 3157.99,3418.49 C3157.39,3419.37 3152.10,3424.56 3150.14,3427.47 C3132.75,3453.49 3096.01,3508.61 3076.67,3537.72 C3069.09,3549.05 3052.79,3575.16 3048.50,3585.50 C3047.92,3586.93 3046.95,3589.94 3046.69,3591.20 C3046.42,3592.60 3046.57,3594.31 3047.09,3596.60 C3047.54,3598.74 3047.43,3600.68 3046.59,3602.25 C3045.72,3603.84 3019.88,3639.83 3009.51,3654.31 C3003.44,3663.00 2999.16,3671.29 2995.97,3675.60 C2986.60,3688.14 2967.04,3713.95 2956.86,3727.24 C2953.62,3731.37 2948.84,3736.12 2948.78,3736.21 C2947.53,3737.96 2946.56,3744.83 2946.18,3748.19 C2945.53,3752.28 2942.06,3758.71 2940.94,3760.47 C2926.86,3781.62 2892.07,3833.01 2871.36,3863.25 C2850.87,3892.66 2810.34,3950.08 2790.29,3978.09 C2778.47,3993.86 2757.23,4021.59 2748.98,4031.74 C2732.96,4051.29 2689.32,4103.96 2679.06,4115.17 C2668.14,4126.90 2646.12,4150.27 2635.03,4161.90 C2623.62,4173.28 2599.68,4196.55 2589.52,4204.97 C2579.93,4212.72 2549.52,4235.24 2540.22,4241.45 C2536.05,4244.14 2526.26,4249.66 2517.72,4254.02 C2508.87,4258.44 2496.79,4262.75 2488.73,4264.07 C2484.06,4264.81 2469.53,4265.97 2466.60,4266.25 C2464.83,4266.37 2463.24,4267.37 2462.50,4267.50 C2462.48,4267.51 2450.47,4264.80 2448.95,4264.36 C2444.51,4263.05 2436.59,4258.79 2433.23,4256.05 C2428.31,4251.96 2419.12,4239.93 2416.50,4236.50" />
+      <path
+        d="M3332.50,3059.50 C3330.97,3057.57 3328.16,3055.07 3326.50,3054.50 C3323.13,3053.41 3313.79,3061.10 3307.46,3067.36 C3295.73,3079.44 3271.88,3106.77 3265.36,3114.93 C3248.71,3136.09 3210.67,3184.89 3189.28,3212.54 C3167.92,3240.53 3126.68,3295.09 3106.79,3321.65 C3087.79,3347.71 3051.46,3398.16 3034.12,3422.57 C3016.14,3448.19 2980.74,3498.88 2963.32,3523.96 C2945.69,3549.54 2909.71,3602.01 2891.36,3628.89 C2872.97,3656.45 2836.23,3712.21 2817.88,3740.42 C2799.42,3769.48 2762.82,3827.72 2744.69,3856.88 C2729.47,3881.94 2694.64,3940.08 2678.81,3968.55 C2670.62,3984.03 2659.66,4006.73 2654.91,4016.80 C2651.71,4023.93 2649.43,4030.18 2647.85,4039.49 C2647.74,4040.16 2647.62,4040.83 2647.50,4041.50" />
+      <path
+        d="M3420.50,3165.50 C3416.00,3169.50 3403.62,3180.31 3400.50,3183.50 C3397.78,3186.30 3382.59,3203.26 3382.50,3203.50 C3382.27,3204.13 3382.42,3206.10 3381.50,3208.50 C3380.58,3210.93 3380.73,3212.87 3380.50,3213.50 C3380.49,3213.53 3333.10,3269.83 3314.25,3292.21 C3290.83,3319.98 3239.79,3380.51 3212.17,3413.25 C3186.74,3443.41 3140.44,3498.34 3119.56,3523.11 C3103.24,3542.51 3083.55,3565.92 3080.18,3569.93 C3079.38,3570.88 3074.39,3577.69 3073.50,3578.50 C3073.12,3578.85 3065.47,3581.29 3061.50,3583.50" />
+      <path
+        d="M3382.50,3203.50 C3380.50,3203.35 3377.53,3203.26 3376.50,3203.50 C3375.46,3203.74 3372.72,3205.47 3372.50,3205.50 C3371.84,3205.62 3371.13,3205.29 3370.50,3205.50 C3370.22,3205.60 3307.09,3268.73 3281.44,3294.74 C3257.29,3320.10 3212.87,3367.35 3192.61,3389.23 C3187.09,3395.56 3175.75,3408.57 3174.50,3409.50 C3172.17,3411.19 3160.53,3415.08 3159.50,3415.50" />
+      <path
+        d="M3174.50,3408.50 C3173.76,3407.76 3171.76,3405.76 3170.50,3404.50 C3168.26,3402.26 3165.26,3399.26 3164.50,3398.50" />
+      <path
+        d="M4280.50,3527.50 C4279.84,3526.55 4279.28,3526.47 4277.74,3527.28 C4264.82,3534.04 4200.56,3562.04 4178.26,3571.57 C4149.30,3583.86 4086.07,3610.64 4051.79,3625.14 C4019.23,3638.92 3956.86,3665.35 3927.05,3678.00 C3893.52,3692.28 3830.20,3719.31 3800.40,3732.06 C3773.38,3743.69 3719.85,3766.78 3693.34,3778.24 C3662.34,3791.76 3599.35,3819.35 3567.37,3833.42 C3539.43,3845.76 3485.96,3869.49 3460.41,3880.89 C3437.70,3891.34 3384.51,3916.46 3354.02,3931.13 C3332.27,3941.77 3284.28,3965.28 3258.04,3978.14 C3227.32,3993.22 3163.30,4024.67 3130.00,4041.05 C3098.29,4056.69 3036.63,4087.18 3006.67,4102.02 C2977.49,4116.55 2918.98,4145.78 2889.64,4160.48 C2862.36,4174.23 2809.76,4200.84 2784.43,4213.70 C2757.74,4227.35 2701.49,4256.18 2671.93,4271.38 C2640.27,4287.72 2579.95,4318.91 2551.29,4333.76 C2520.62,4349.69 2457.28,4382.62 2424.61,4399.62 C2390.35,4417.48 2325.39,4451.37 2294.68,4467.40 C2269.05,4480.80 2222.86,4504.96 2202.30,4515.73 C2192.98,4520.66 2173.54,4531.27 2163.43,4536.97 C2133.86,4552.15 2070.50,4584.22 2036.73,4601.10 C2030.39,4604.23 2018.88,4609.89 2013.72,4612.42 C2010.78,4613.89 2004.46,4615.72 2003.50,4615.50 C2003.17,4615.42 2002.51,4615.09 2001.50,4614.50" />
+      <path
+        d="M3075.50,3575.50 C3073.78,3573.78 3070.78,3570.78 3069.50,3569.50 C3066.50,3566.50 3062.50,3562.50 3061.50,3561.50" />
+      <path
+        d="M3059.50,3563.50 C3060.35,3564.10 3060.61,3564.82 3060.56,3566.99 C3060.51,3570.83 3060.41,3580.18 3060.50,3580.50 C3061.00,3581.50 3061.63,3582.92 3061.60,3585.10 C3061.57,3589.02 3061.52,3594.22 3061.50,3595.50" />
+      <path
+        d="M2463.50,3716.50 C2466.04,3719.04 2470.04,3723.04 2471.50,3724.50 C2473.84,3726.84 2476.84,3729.84 2477.50,3730.50" />
+      <path
+        d="M2460.50,3729.50 C2460.62,3731.68 2461.00,3734.71 2461.50,3735.50 C2462.01,3736.27 2464.79,3736.35 2465.50,3736.50 C2465.98,3736.59 2466.98,3736.92 2468.50,3737.50" />
+      <path
+        d="M2946.50,3740.50 C2943.12,3741.61 2934.20,3744.58 2932.50,3745.50 C2930.20,3746.80 2928.21,3750.67 2922.96,3756.86 C2906.53,3776.13 2866.43,3823.08 2842.74,3850.74 C2817.92,3879.43 2772.57,3931.30 2752.03,3954.48 C2744.81,3962.43 2728.75,3979.90 2719.91,3989.42 C2702.06,4007.89 2684.01,4024.64 2675.05,4032.71 C2671.58,4035.74 2662.76,4043.33 2662.50,4043.50 C2660.44,4044.85 2657.25,4046.33 2655.31,4046.70 C2653.42,4047.02 2651.55,4045.95 2649.64,4043.68 C2648.47,4042.30 2647.76,4041.57 2647.50,4041.50 C2646.88,4041.35 2645.09,4044.69 2644.50,4045.50 C2644.19,4045.97 2641.90,4047.79 2641.50,4048.50 C2641.02,4049.35 2640.07,4052.40 2639.50,4054.50" />
+      <path
+        d="M3324.50,3786.50 C3321.75,3788.64 3314.20,3794.59 3313.50,3795.50 C3312.73,3796.52 3312.65,3798.89 3312.50,3799.50 C3311.90,3802.03 3303.00,3813.03 3296.73,3819.37 C3285.60,3830.15 3261.54,3852.88 3248.50,3864.50 C3234.60,3876.39 3207.22,3898.45 3196.68,3906.46 C3192.77,3909.34 3189.11,3911.59 3185.40,3912.94 C3181.23,3914.43 3179.08,3914.17 3178.50,3914.50 C3178.09,3914.72 3177.95,3915.65 3177.50,3915.50 C3177.10,3915.36 3173.72,3911.79 3172.50,3910.50" />
+      <path
+        d="M3229.50,3828.50 C3230.46,3829.84 3232.34,3831.42 3233.50,3831.50 C3234.78,3831.58 3273.68,3810.26 3288.87,3801.94 C3292.30,3800.12 3298.66,3796.81 3301.25,3795.55 C3304.28,3794.06 3310.48,3792.89 3311.50,3793.50 C3311.83,3793.71 3312.50,3794.37 3313.50,3795.50" />
+      <path
+        d="M2439.50,3803.50 C2435.68,3809.94 2426.19,3825.65 2422.49,3828.50 C2421.63,3829.15 2418.33,3830.19 2417.86,3830.47 C2415.94,3831.62 2412.31,3837.58 2411.65,3838.63 C2399.38,3858.31 2371.45,3903.31 2355.79,3928.63 C2336.74,3959.58 2295.50,4026.69 2273.32,4062.84 C2252.67,4096.51 2214.62,4158.56 2197.22,4186.93 C2183.06,4209.99 2154.77,4255.82 2140.63,4278.58 C2137.01,4284.06 2130.86,4292.89 2125.84,4297.29 C2123.69,4299.24 2117.95,4305.00 2115.43,4307.98 C2112.80,4311.14 2110.98,4316.38 2109.50,4318.50 C2107.65,4321.13 2091.95,4338.88 2090.15,4341.87 C2089.74,4342.56 2088.84,4344.72 2088.50,4345.50" />
+      <path
+        d="M2425.50,3825.50 C2427.68,3825.64 2430.69,3826.04 2431.50,3826.50 C2432.16,3826.89 2432.58,3831.66 2433.50,3835.50" />
+      <path
+        d="M2415.50,3832.50 C2416.85,3833.57 2419.41,3835.70 2421.50,3837.50 C2422.60,3838.45 2429.26,3844.47 2431.50,3846.50" />
+      <path
+        d="M3199.50,3861.50 C3198.07,3860.71 3194.13,3858.52 3193.50,3858.50 C3192.76,3858.48 3192.21,3859.28 3191.50,3859.50 C3190.87,3859.72 3189.23,3859.56 3187.82,3860.53 C3187.55,3860.72 3135.36,3892.76 3114.76,3905.43 C3089.48,3921.00 3034.25,3955.02 3004.32,3973.48 C2972.46,3993.15 2908.75,4032.55 2876.90,4052.27 C2845.06,4072.04 2781.68,4111.45 2750.15,4131.09 C2720.73,4149.46 2661.87,4186.27 2632.43,4204.70 C2602.97,4223.20 2544.03,4260.24 2514.55,4278.80 C2485.84,4296.90 2430.77,4331.65 2404.41,4348.30 C2380.44,4363.45 2334.88,4392.28 2313.29,4405.95 C2282.25,4425.67 2219.04,4465.96 2186.88,4486.53 C2165.46,4500.45 2125.03,4526.93 2106.00,4539.50 C2076.30,4559.77 2004.21,4609.62 2003.50,4610.50 C2003.16,4610.92 2002.77,4613.20 2001.50,4614.50 C2000.34,4615.68 1983.89,4626.60 1979.50,4629.50" />
+      <path
+        d="M2401.50,4010.50 C2403.37,3995.03 2407.60,3970.26 2410.98,3951.24 C2417.80,3916.48 2427.35,3867.87 2430.06,3854.00 C2431.75,3845.24 2432.45,3837.67 2432.50,3837.50 C2432.68,3836.94 2434.61,3833.21 2435.90,3827.76 C2437.69,3819.44 2440.51,3805.70 2440.50,3805.50 C2440.45,3804.49 2440.00,3801.97 2440.72,3800.54 C2442.95,3796.14 2453.64,3755.33 2458.33,3738.87 C2459.69,3734.02 2461.42,3727.10 2461.50,3726.50 C2461.90,3723.64 2461.18,3718.96 2461.50,3718.50 C2462.05,3717.74 2463.27,3717.41 2463.50,3716.50 C2463.69,3715.78 2462.69,3715.22 2462.50,3714.50 C2462.44,3714.26 2487.36,3630.84 2497.92,3595.97 C2502.91,3580.05 2513.27,3547.56 2518.64,3530.99 C2528.54,3502.18 2548.59,3445.43 2558.74,3417.49 C2569.69,3388.85 2592.29,3330.89 2603.93,3301.57 C2616.08,3271.79 2640.70,3212.31 2653.17,3182.62 C2666.49,3152.09 2692.42,3093.64 2705.02,3065.72 C2719.39,3035.36 2746.84,2978.23 2759.93,2951.45 C2773.34,2924.82 2800.52,2871.63 2814.28,2845.08 C2830.07,2815.91 2862.34,2757.01 2878.84,2727.26 C2886.58,2713.52 2901.62,2687.06 2908.92,2674.35 C2917.66,2659.62 2933.72,2633.16 2941.03,2621.44 C2957.10,2596.60 2990.95,2545.01 3008.73,2518.25 C3017.96,2504.63 3036.40,2477.65 3045.63,2464.30 C3064.48,2437.93 3101.51,2387.01 3120.44,2362.29 C3130.78,2349.35 3151.16,2324.39 3161.20,2312.37 C3171.29,2300.85 3192.87,2276.82 3204.42,2264.62 C3215.62,2253.24 3239.64,2229.32 3249.04,2220.70 C3255.07,2215.31 3266.36,2205.71 3271.88,2201.13 C3277.34,2196.85 3286.39,2189.80 3296.10,2182.91 C3303.21,2178.05 3316.99,2169.19 3322.77,2165.95 C3326.23,2164.04 3334.37,2160.55 3338.41,2159.55 C3347.96,2157.41 3357.38,2155.47 3357.50,2155.50 C3358.22,2155.68 3358.77,2156.34 3359.50,2156.50 C3359.91,2156.60 3363.03,2155.13 3363.97,2155.03 C3365.44,2154.89 3368.86,2155.93 3370.60,2156.98 C3372.78,2158.33 3378.44,2162.69 3379.50,2163.50" />
+      <path
+        d="M2403.50,3997.50 C2404.54,3998.92 2404.48,3999.81 2402.96,4002.18 C2401.66,4004.24 2401.37,4006.42 2401.99,4008.95 C2402.62,4011.52 2402.36,4013.75 2401.08,4016.30 C2399.57,4019.29 2399.24,4020.33 2399.52,4021.70 C2400.04,4024.09 2399.01,4040.61 2398.46,4048.87 C2397.35,4066.13 2395.63,4099.37 2395.49,4112.97 C2395.73,4129.84 2397.25,4155.47 2399.44,4172.18 C2400.71,4180.52 2403.79,4199.23 2404.50,4202.50 C2406.44,4211.38 2409.80,4220.58 2410.50,4222.50" />
+      <path
+        d="M2409.50,4223.50 C2406.65,4217.96 2401.35,4204.01 2399.72,4198.13 C2398.43,4193.42 2394.49,4174.15 2393.79,4169.72 C2392.59,4162.05 2391.34,4147.54 2390.91,4138.28 C2390.63,4126.44 2391.66,4090.36 2393.25,4073.75 C2394.87,4059.55 2397.64,4035.97 2399.40,4026.54 C2399.76,4024.51 2401.18,4022.42 2401.50,4021.50 C2401.61,4021.17 2401.01,4018.09 2401.00,4016.50 C2400.98,4011.75 2403.27,4006.75 2403.50,4005.50 C2403.64,4004.75 2402.40,4000.27 2402.50,3999.50 C2402.55,3999.08 2402.89,3998.41 2403.50,3997.50" />
+      <path
+        d="M2011.50,4613.50 C2010.83,4612.83 2010.17,4612.17 2009.50,4611.50 C2008.67,4610.67 2007.17,4609.17 2006.50,4608.50" />
+    </svg>
+    <span class="intro__skip" id="introSkip">Skip</span>
+  </div>
+
+  <!-- Carousel ("roulette"): one cover per slide, rotating automatically -->
+  <div class="carousel" id="carousel">
+    <div class="carousel__track" id="carouselTrack">
+
+      <div class="cover-slide is-active" data-slide>
+        <div class="cover">
+          <img class="cover__bg" src="piece-01.jpg" alt="Background layer">
+
+          <div class="cover__scrim"></div>
+
+          <div class="cover__top animate-text">
+            <span>09 March, 2026</span>
+            <span>Vol. 04</span>
+          </div>
+
+          <!-- Foreground cutout, same crop as .cover__bg above, but placed
+               above the scrim and text (see .cover__art z-index) so the
+               opaque parts of the figure — hair, the CD case, the hand —
+               sit in front of the masthead/nameplate and partially cover
+               them, instead of the text always sitting on top. -->
+          <img class="cover__art" src="piece-01-Photoroom.png" alt="Hatsune Miku, foreground cutout">
+
+          <div class="cover__nameplate animate-text">
+            <div>
+              <ruby>初<rt>は</rt></ruby><ruby>音<rt>つね</rt></ruby>
+            </div>
+            <div>
+              <ruby>ミ<rt>み</rt></ruby><ruby>ク<rt>く</rt></ruby>
+            </div>
+          </div>
+
+          <div class="cover__masthead animate-text">
+            <span class="eyebrow">Japan</span>
+            <span class="wordmark">VOGUE</span>
+          </div>
+
+          <div class="cover__line animate-text">BACK<br>TO THE<br>2000s</div>
+
+          <div class="cover__bottom-right animate-text">
+            <div class="barcode"></div>
+            <span class="tag">Miku</span>
+          </div>
+
+          <span class="caption">Hatsune Miku — illustration by Kieed</span>
+        </div>
+      </div>
+
+      <div class="cover-slide" data-slide>
+        <div class="cover cover--sekai">
+          <img class="cover__bg" src="147630155_p0.jpg" alt="Background layer">
+
+          <div class="cover__scrim"></div>
+
+          <div class="cover__top animate-text">
+            <span>21 June, 2026</span>
+            <span>Vol. 05</span>
+          </div>
+
+          <div class="cover__nameplate animate-text">
+            <div>
+              <ruby>初<rt>は</rt></ruby><ruby>音<rt>つね</rt></ruby>
+            </div>
+            <div>
+              <ruby>ミ<rt>み</rt></ruby><ruby>ク<rt>く</rt></ruby>
+            </div>
+          </div>
+
+          <div class="cover__masthead animate-text">
+            <span class="eyebrow">Sekai</span>
+            <span class="wordmark">VOGUE</span>
+          </div>
+
+          <div class="cover__side-quote animate-text">
+            <ruby>深<rt>ふか</rt></ruby>い<ruby>青<rt>あお</rt></ruby>の<ruby>中<rt>なか</rt></ruby>で
+          </div>
+
+          <div class="cover__line animate-text">WINTER<br>IN<br>BLUE</div>
+
+          <div class="cover__bottom-right animate-text">
+            <div class="barcode"></div>
+            <span class="tag">Miku</span>
+          </div>
+
+          <div class="cover__swatches animate-text">
+            <span class="chip" style="background: var(--deep);"></span>
+            <span class="chip" style="background: var(--gold);"></span>
+            <span class="chip" style="background: var(--coral);"></span>
+            <span class="chip" style="background: var(--frost);"></span>
+            <span class="swatch-label">Color story</span>
+          </div>
+
+          <span class="caption">Hatsune Miku — illustration by Kieed</span>
+        </div>
+      </div>
+
+      <!--
+        To add another cover to the rotation:
+          1. Copy the whole "cover-slide" block above (from <div class="cover-slide" ...>
+             down to its closing </div>).
+          2. Paste it here as a sibling, WITHOUT the "is-active" class.
+          3. Swap the image, nameplate, masthead, line and tag text for the new piece.
+        The barcode, dot navigation, autoplay, roll-in reveal and text entrance
+        animation all pick up new slides automatically — nothing else needs to change.
+      -->
+
+    </div>
+
+    <!-- Roll FX (placeholders — swap the CSS/keyframes for these two whenever
+         you have real effects ready):
+           .reel-streaks → plays while the art is cycling
+           .reel-flash   → plays once when it lands on the chosen cover -->
+    <div class="reel-streaks" aria-hidden="true"></div>
+    <div class="reel-flash" aria-hidden="true"></div>
+
+    <button class="carousel__arrow carousel__arrow--prev" type="button" aria-label="Previous cover">‹</button>
+    <button class="carousel__arrow carousel__arrow--next" type="button" aria-label="Next cover">›</button>
+    <div class="carousel__dots" id="carouselDots"></div>
+  </div>
+
+  <script>
+    // ---------- Signature intro ----------
+    (function () {
+      const intro = document.getElementById('intro');
+      const skip = document.getElementById('introSkip');
+      const sig = document.querySelector('.intro__sig');
+      let revealed = false;
+
+      // Each stroke's duration is based on its REAL length (getTotalLength()),
+      // not a hand-guessed number — so this works no matter how many paths
+      // the signature has or how long each one is. Delays are chained with a
+      // slight overlap so strokes flow into each other like real handwriting
+      // instead of pausing dead between every single one.
+      const DRAW_SPEED = 5.2;   // px of path length drawn per ms — raise to draw faster
+      const OVERLAP = 0.6;      // next stroke starts at 60% through the previous one
+      const MIN_DURATION = 90;  // ms — keeps tiny dots/strokes from being instant
+
+      const paths = Array.from(sig.querySelectorAll('path'));
+
+      // Order strokes left-to-right by each path's leftmost point, instead of
+      // whatever order they were drawn/exported in — so the whole signature
+      // writes on left-to-right like reading order.
+      paths.sort((a, b) => a.getBBox().x - b.getBBox().x);
+
+      let cursor = 0;
+      paths.forEach((p) => {
+        const len = p.getTotalLength();
+        const duration = Math.max(MIN_DURATION, len / DRAW_SPEED);
+        p.style.setProperty('--len', len);
+        p.style.animationDuration = duration + 'ms';
+        p.style.animationDelay = cursor + 'ms';
+        cursor += duration * OVERLAP;
+      });
+      const lastDuration = parseFloat(paths[paths.length - 1].style.animationDuration);
+      const totalDrawTime = cursor + lastDuration;
+
+      // Only start drawing once the real lengths/timings above are set.
+      sig.classList.add('is-ready');
+
+      function reveal() {
+        if (revealed) return;
+        revealed = true;
+        intro.classList.add('is-hidden');
+        document.dispatchEvent(new CustomEvent('intro:done'));
+        setTimeout(() => { intro.style.display = 'none'; }, 650);
+      }
+
+      // Not gating this behind prefers-reduced-motion any more — a system-level
+      // "reduce motion" setting (common on Windows, and it applies identically
+      // across Brave/Chrome/Edge since they all read the same OS flag) was the
+      // likely reason the draw never appeared to play. Skip below remains the
+      // manual, always-available way to bypass it.
+      skip.classList.add('is-visible');
+
+      // Once the signature has actually finished drawing, swap the quiet
+      // "Skip" label for an explicit "Please click to continue" prompt and
+      // stop auto-advancing — clicking through here is also the user gesture
+      // browsers require before they'll let any sound effects play once the
+      // roll starts, so this doubles as making sure audio actually works.
+      setTimeout(() => {
+        skip.textContent = 'Please click to continue';
+        skip.classList.add('is-prompt');
+      }, totalDrawTime + 300);
+
+      intro.addEventListener('click', reveal);
+    })();
+
+    // ---------- Carousel ("roulette") ----------
+    (function () {
+      const carousel = document.getElementById('carousel');
+      const track = document.getElementById('carouselTrack');
+      const slides = Array.from(track.querySelectorAll('.cover-slide'));
+      const dotsWrap = document.getElementById('carouselDots');
+      const prevBtn = document.querySelector('.carousel__arrow--prev');
+      const nextBtn = document.querySelector('.carousel__arrow--next');
+      const AUTOPLAY_MS = 7000;
+      let current = slides.findIndex((s) => s.classList.contains('is-active'));
+      if (current < 0) current = 0;
+      let timer = null;
+      let landed = false; // becomes true once the roll settles on a cover
+
+      // ---- Sound FX ----
+      // sfx.click    → Library of Ruina click/dice-roll — fires once, when the
+      //                roll lands on the chosen cover.
+      // sfx.pageFlip → magazine page turn — fires on every roll tick (so the
+      //                spin sounds like pages flipping past) and on manual
+      //                next/prev/dot navigation.
+      // No dedicated "rolling" sound was supplied, so the page-flip doubles as
+      // that — swap in a real spin/whirr file later by pointing sfx.roll at it
+      // and calling playSfx('roll', ...) instead inside tick() below.
+      const sfx = {
+        click: new Audio('sfx-click.mp3'),
+        pageFlip: new Audio('sfx-page-flip.mp3'),
+      };
+      Object.values(sfx).forEach((a) => { a.preload = 'auto'; });
+
+      function playSfx(key, { volume = 1, rate = 1 } = {}) {
+        const base = sfx[key];
+        if (!base) return;
+        const node = base.cloneNode(); // clone so overlapping/rapid plays don't cut each other off
+        node.volume = volume;
+        node.playbackRate = rate;
+        node.play().catch(() => { }); // ignore autoplay-blocked errors
+      }
+
+      // Browsers won't play audio until the page has had a user gesture. The
+      // intro is clickable/skippable, but if someone just lets it play out
+      // untouched, prime playback on the first pointer/key event so the very
+      // first SFX (usually a roll tick) isn't silently dropped.
+      let audioUnlocked = false;
+      function unlockAudio() {
+        if (audioUnlocked) return;
+        audioUnlocked = true;
+        Object.values(sfx).forEach((a) => {
+          a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => { });
+        });
+      }
+      ['pointerdown', 'keydown'].forEach((evt) =>
+        document.addEventListener(evt, unlockAudio, { once: true, passive: true })
+      );
+
+      slides.forEach((slide, i) => {
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'carousel__dot';
+        dot.setAttribute('aria-label', 'Go to cover ' + (i + 1));
+        dot.addEventListener('click', () => goTo(i, true));
+        dotsWrap.appendChild(dot);
+      });
+      const dots = Array.from(dotsWrap.children);
+
+      function render() {
+        slides.forEach((s, i) => s.classList.toggle('is-active', i === current));
+        dots.forEach((d, i) => d.classList.toggle('is-active', i === current));
+        if (landed) slides[current].classList.add('reveal-text');
+      }
+
+      function goTo(i, manual) {
+        current = (i + slides.length) % slides.length;
+        playSfx('pageFlip', { volume: manual ? 0.6 : 0.4 });
+        render();
+        if (manual) restartAutoplay();
+      }
+
+      // ---- Roll ("slot machine") reveal ----
+      // Cycles the cover art through the slides, slowing down tick by tick,
+      // then lands on a randomly chosen slide. Runs once, right after the
+      // signature intro finishes. If there's only one slide, it just lands
+      // on it directly — nothing to roll through.
+      function startRoll() {
+        if (slides.length < 2) {
+          landOn(current);
+          return;
+        }
+
+        carousel.classList.add('is-rolling');
+
+        const finalIndex = Math.floor(Math.random() * slides.length);
+        const TICKS = 16 + Math.floor(Math.random() * 5); // 16–20 stops
+        let tickCount = 0;
+        let idx = current;
+
+        function tick() {
+          idx = (idx + 1) % slides.length;
+          // Force the last stop to be the chosen slide so the reel actually
+          // lands on it rather than wherever modulo math happens to put it.
+          if (tickCount === TICKS - 1) idx = finalIndex;
+          slides.forEach((s, i) => s.classList.toggle('is-active', i === idx));
+
+          // Pitch climbs slightly as the reel speeds toward its fastest point,
+          // then eases back down with the deceleration — mirrors the visual.
+          const progress = tickCount / TICKS;
+          playSfx('pageFlip', { volume: 0.45, rate: 0.9 + Math.sin(progress * Math.PI) * 0.5 });
+
+          tickCount++;
+          if (tickCount < TICKS) {
+            const delay = 55 + Math.pow(progress, 3) * 480; // ease into a slowdown
+            setTimeout(tick, delay);
+          } else {
+            landOn(idx);
+          }
+        }
+
+        tick();
+      }
+
+      function landOn(idx) {
+        current = idx;
+        landed = true;
+        carousel.classList.remove('is-rolling');
+        render();
+        carousel.classList.add('is-landed');
+        playSfx('click', { volume: 0.9 });
+        setTimeout(() => carousel.classList.remove('is-landed'), 800);
+        startAutoplay();
+      }
+
+      function next(manual) { goTo(current + 1, manual); }
+      function prev(manual) { goTo(current - 1, manual); }
+
+      function startAutoplay() {
+        if (slides.length < 2) return;
+        timer = setInterval(() => next(false), AUTOPLAY_MS);
+      }
+
+      function restartAutoplay() {
+        clearInterval(timer);
+        startAutoplay();
+      }
+
+      prevBtn.addEventListener('click', () => prev(true));
+      nextBtn.addEventListener('click', () => next(true));
+
+      // Barcode, scoped per-slide so extra covers just work
+      slides.forEach((slide) => {
+        const barcode = slide.querySelector('.barcode');
+        if (barcode) {
+          let bars = '';
+          for (let i = 0; i < 22; i++) {
+            const w = [1, 2, 1, 3, 1, 1][i % 6];
+            const h = 8 + ((i * 5) % 14);
+            bars += `<span style="width:${w}px;height:${h}px;"></span>`;
+          }
+          barcode.innerHTML = bars;
+        }
+      });
+
+      render();
+      document.addEventListener('intro:done', startRoll, { once: true });
+    })();
+  </script>
+
+</body>
+
+</html>
